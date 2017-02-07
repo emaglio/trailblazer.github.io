@@ -1,5 +1,6 @@
-PATH
-  remote: ../torture
+GIT
+  remote: git://github.com/apotonick/torture.git
+  revision: 1cac7ec15d9b94ce8e6f81466eedda297ec16b21
   specs:
     torture (0.1.0)
       kramdown
@@ -141,4 +142,4 @@ DEPENDENCIES
   torture!
 
 BUNDLED WITH
-   1.12.5
+   1.13.6
