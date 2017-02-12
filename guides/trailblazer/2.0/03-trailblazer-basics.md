@@ -16,14 +16,13 @@ Now that you know and curios about Trailblazer, we are going to learn how to use
 In this third guide we are going to learn how to build a basic Blog app using TRB 2.
 
 As mentioned before TRB uses different gems to looking after different layers of a rails app which means code organised and easy to read (if you know TRB).
-Furthermore TRB allows implementing a new feature without reviewing all classes in your project.
 
 {% callout %}
 Code for this session is [here](https://github.com/trailblazer/guides/tree/operation-03).
 {% endcallout %}
 
 ## Gemfile
-In this third guide we are goin to use `slim` and [formular](https://github.com/trailblazer/formular) for views, [Cell](http://trailblazer.to/gems/cells/) in order to have a much easier and more organised UI and `minitest` so our `gemfile` is a bit different than the guide 2:
+In this third guide we are going to use `slim` and `simple_form` for the views, [Cell](http://trailblazer.to/gems/cells/) in order to have a much easier and more organised UI and `minitest` so our `gemfile` is a bit different than the guide 2:
 
 ```
 source 'https://rubygems.org'
@@ -36,7 +35,7 @@ gem "dry-validation"
 gem "rake", "~> 10.0"
 gem 'minitest'
 
-gem 'formular', :github => "trailblazer/formular"
+gem 'simple_form'
 gem 'trailblazer-cells'
 gem 'trailblazer-rails'
 gem 'cells-rails'
@@ -73,7 +72,7 @@ app
 ```
 Instead of grouping by technology, classes and views are structured by *concept*, and then by *technology*. A concept can relate to a model, or can be a completely abstract concern such as invoicing.
 
-The structure is stratight forward in terms of where to put the code and it must be followed in order to have TRB working properly.
+The structure is straight forward in terms of where to put the code and it must be followed in order to have TRB working properly.
 
 ## Overview Trailblazer Cells
 
@@ -91,7 +90,7 @@ We suggest to have a look [here](http://trailblazer.to/gems/cells/getting-starte
 
 ## CRUD for Post
 
-We are back to chapter 02 of any rails tutorial where the CRUD procedure is illustrated, well, `routes` and `controllers` are excatly the same as any other rails application but obviously what we call, in particular, in the 'controllers' are different.
+We are back to chapter 02 of any rails tutorial where the CRUD procedure is illustrated, well, `routes` and `controllers` are exactly the same as any other rails application but obviously what we call, in particular, in the `controllers` is different.
 
 Here an example of what `BlogPostController` looks like with TRB:
 
@@ -107,12 +106,12 @@ Here the model for BlogPost and User:
 
 {{ "app/models/user.rb:model:../trailblazer-guides:operation-03" | tsnippet }}
 
-The `User` model has the property `signed_in` which is just a flag that we are going to use in order to have `current_user`(we should use an authorization gem for this though like [tyrant](https://github.com/apotonick/tyrant)).
+The `User` model has the property `signed_in` which is just a flag that we are going to use in order to have `current_user`(we should use an authorization gem for this though).
 
-In order to have a `New` post we have to implement few **SPTES** which is at the base of the railway concept in TRB:
-- make sure that a User is signed in
-- create a `BlogPost` model
-- present a form that the User will use to add `Title` and `Body` 
+In order to have a `New` post we have to implement few **STEPS** which is at the base of the railway concept in TRB:
+  - make sure that a User is signed in
+  - create a `BlogPost` model
+  - present a form that the User will use to add `Title` and `Body` 
 
 Here the operation:
 
@@ -129,16 +128,16 @@ The `new` method in our controller will be:
 Using `run TRB::Op` or `TRB::Op.()` will procedure the same result, the only different is that using `.()` is possible to [inject dependecy to the operation](http://trailblazer.to/guides/trailblazer/2.0/02-trailblazer-basics.html#dependencies) like for example `"current_user" => user`.
 
 Calling an operation will always return a [Result Object](http://trailblazer.to/gems/operation/2.0/api.html#result-object) and in base on which steps are implemented this object will be populated so for example in this case it will have a `policy`, `model` and `form` object (it actually has much more but this is what we need now).
-The pipe flow is nothing different than the `BlogPost::Create` operation shown in the second guide, the only different is that we only build the contract becuase we just need to present the form to the User.
+The pipe flow is nothing different than the `BlogPost::Create` operation shown in the second guide, the only different is that we only build the contract because we just need to present the form to the User.
 
 We can quickly test the pipeflow trying to create a post without a user signed in:
 
 {{ "test/concepts/blog_post/operation/operation_test.rb:policy:../trailblazer-guides:operation-03" | tsnippet }}
 
-In the test we verify that if the user is not signed in the model will be nil and the policy object will return fasle which will move the pipeflow to the left and won't let the other steps to be executed.
+In the test we verify that if the user is not signed in the model will be nil and the policy object will return false which will move the pipeflow to the left and won't let the other steps to be executed.
 
 Now that we have the data structure we need to actually show it to the User therefore we call `render BlogPost::Cell::New` and we pass the `Reform::Form` object to the cell class with `result["contract.default"]`.
-We actually need to pass more information to the cell in order to have a better looking and smarter application, so we need to pass for exaple `current_user`, `flash` messages, the `layout` and all the information that the cell class needs to elaborate. This more information are basically the same for all the cell classes so we create a `render` method in `application_controller`:
+We actually need to pass more information to the cell in order to have a better looking and smarter application, so we need to pass for example `current_user`, `flash` messages, the `layout` and all the information that the cell class needs to elaborate. This more information are basically the same for all the cell classes so we create a `render` method in `application_controller`:
 
 {{ "app/controllers/application_controller.rb:render:../trailblazer-guides:operation-03" | tsnippet }}
 
@@ -189,7 +188,7 @@ This will run `BlogPost::Create` and in case of a success `result` a flash messa
 
 {{ "app/concepts/blog_post/operation/create.rb:createop:../trailblazer-guides:operation-03" | tsnippet }}
 
-With the first step we introduce the concept of [Nested Operations](http://trailblazer.to/gems/operation/2.0/api.html#nested), this basically add all the `BlogPost::New` steps in the current operation, which means that with one step we check if a user is still signed in, create a new model and build the contract. In case all the steps in the Nested operation return true, `Contract::Validate` is finally called and here it's where most of the time *things can go wrong*. Basically if the validations implemented in the contract are not sutisfied the pipeflow will move to failure pipe and all the next steps won't be exucuted (if a `failure` step has not been implemented) and the operation will return failure result which means rendering the `Cell::New` and showing the errors.
+With the first step we introduce the concept of [Nested Operations](http://trailblazer.to/gems/operation/2.0/api.html#nested), this basically add all the `BlogPost::New` steps in the current operation, which means that with one step we check if a user is still signed in, create a new model and build the contract. In case all the steps in the Nested operation return true, `Contract::Validate` is finally called and here it's where most of the time *things can go wrong*. Basically if the validations implemented in the contract are not satisfied the pipeflow will move to failure pipe and all the next steps won't be exucuted (if a `failure` step has not been implemented) and the operation will return failure result which means rendering the `Cell::New` and showing the errors.
 Let's have a look to a test to understand this better:
 
 {{ "test/concepts/blog_post/operation/operation_test.rb:validation:../trailblazer-guides:operation-03" | tsnippet }}
@@ -206,7 +205,7 @@ Passing `current_user` and the hash `params` correctly we expect that the operat
 
 ## Index && Show
 
-Now that we have a Post to show we can have a look how to preset a Post lists and a single Post.
+Now that we have a Post to show we can have a look how to present a Post lists and a single Post.
 
 To present the list of the posts we use the action `index` in `blog_posts_controller`:
 
@@ -237,7 +236,7 @@ h6 = total
 ```
 
 The cell class is used just as a decoration, so in case there is no `BlogPost` the string `"No posts"` is shown.
-Much more insteresting is the view, we bascially call another cell class `Item` in order to show the actual a sort of summary of the `BlogPosts` and because we pass a `collection` as second argument, in case model has size more than 1, this will create the list of `BlogPosts` that we want.
+Much more interesting is the view, we basically call another cell class `Item` in order to show the actual a sort of summary of the `BlogPosts` and because we pass a `collection` as second argument, in case model has size more than 1, this will create the list of `BlogPosts` that we want.
 
 Here the `BlogPost::Cell::Item`:
 
@@ -273,7 +272,7 @@ Let's have a loot to the test:
 
 {{ "app/test/concepts/operation/blog_post/operation_test.rb:not_found:../trailblazer-guides:operation-03" | tsnippet }}
 
-As shown here if you pass a not existing `id` the result of the `show` operation is still false but it shows a not found Post in order to correctly render the `Cell::Show` and to let the `User` undestands that something went wrong and keep using the web-application. 
+As shown here if a not existing `id` is passed the result of the `show` operation is still false but it shows a not found Post in order to correctly render the `Cell::Show` and to let the `User` understands that something went wrong and keep using the web-application. 
 
 ## Edit && Update
 
@@ -344,3 +343,33 @@ The update operation below is basically the same of `BlogPost::Create`:
 
 {{ "app/concepts/blog_post/operation/update.rb:updateop:../trailblazer-guides:operation-03" | tsnippet }}
 
+Here the tests for it:
+
+{{ "app/tests/concepts/blog_post/operation/operation_test.rb:update:../trailblazer-guides:operation-03" | tsnippet }}
+
+We test all the possible failures so we check:
+- "not found" BlogPost is created if a BlogPost doesn't exists
+- a NotAuthorizedError is reasied in case "current_user" is `nil`
+- a NotAuthorizedError is reasied in case "current_user" is not either `owner` or `admin`
+
+Then we test that `owner` and `admin` are actually able to update the BlogPost changing the `title`: "NewTitle" and "AdminTitle"
+
+## Delete
+
+We got to the last action `destroy`, here the controller:
+
+{{ "app/controllers/blog_post_controller.rb:delete:../trailblazer-guides:operation-03" | tsnippet }}
+
+This action is called by the `delete` link in the edit page, so in case the operation returns false `Cell::Edit` is rendered.
+
+The `BlogPost::Delete` operation:
+
+{{ "app/concepts/blog_post/operation/delete.rb:deleteop:../trailblazer-guides:operation-03" | tsnippet }}
+
+We are using again the trick of the "fake" BlogPost and the `fail_fast` feature.
+In case the `BlogPost` exists we check the `Policy` and only if it is satisfied a notification is sent and the model is destroyed.
+Here the test:
+
+{{ "app/tests/concepts/blog_post/operation/operation_test.rb:delete:../trailblazer-guides:operation-03" | tsnippet }}
+
+Same as per the `update` action we check all the possible failures and then we actually check that the BlogPost is destroyed.
