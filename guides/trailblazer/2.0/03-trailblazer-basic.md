@@ -138,7 +138,7 @@ We can quickly test the pipeflow trying to create a post without a user signed i
 In the test we verify that if the user is not signed in the model will be nil and the policy object will return fasle which will move the pipeflow to the left and won't let the other steps to be executed.
 
 Now that we have the data structure we need to actually show it to the User therefore we call `render BlogPost::Cell::New` and we pass the `Reform::Form` object to the cell class with `result["contract.default"]`.
-We actually need to pass more information to the cell in order to have a better looking and smarter application, so we need to pass for exaple `current_user`, the `layout` and all the information that the cell class needs to elaborate. This more information are basically the same for all the cell classes so we create a `render` method in `application_controller`:
+We actually need to pass more information to the cell in order to have a better looking and smarter application, so we need to pass for exaple `current_user`, `flash` messages, the `layout` and all the information that the cell class needs to elaborate. This more information are basically the same for all the cell classes so we create a `render` method in `application_controller`:
 
 {{ "app/controllers/application_controller.rb:render:../trailblazer-guides:operation-03" | tsnippet }}
 
@@ -156,21 +156,24 @@ Here the view:
 .row.new
   h1 New Post
 
-  = trb_form_for(model, "/posts", method: :post, builder: :bootstrap4, id: :new_post) do |f|
+  = simple_form_for model do |f|
     .row
       .col-sm-12
-        = f.input :title, placeholder: "Title"
+        = f.input :title, placeholder: "Title", label: false
     .row
       .col-sm-12
-        = f.textarea :body, placeholder: "What do you wanna say?"
+        = f.input :subtitle, placeholder: "Title", label: false
+    .row
+      .col-sm-12
+        = f.textarea :body, placeholder: "What do you wanna say?", label: false
     .row
       .col-sm-12
         = "by " + user_name
-        = f.input :author, value: user_name, type: "hidden"
-        = f.input :user_id, value: current_user.id, type: "hidden"
+        = f.input :author, :value => user_name, :as => :hidden
+        = f.input :user_id, :value => current_user.id, :as => :hidden
     .row
       .col-sm-12  
-          = f.submit(value: "Create Post")
+        = f.submit 'Create Post'
 ```
 
 First in first in cell we need to have for each cell class a template in the view folder which must have the same name of the cell class so `cell/new.rb` --> `view/new.slim` otherwise you will have a `MissingTemplate Error`.
@@ -200,3 +203,144 @@ We are not actually sure about this until we are tesing it:
 {{ "test/concepts/blog_post/operation/operation_test.rb:create:../trailblazer-guides:operation-03" | tsnippet }}
 
 Passing `current_user` and the hash `params` correctly we expect that the operation will execute successfully, that the title in the model is correct, that we have one `BlogPost` in the database and we should also test that a notification has been sent.
+
+## Index && Show
+
+Now that we have a Post to show we can have a look how to preset a Post lists and a single Post.
+
+To present the list of the posts we use the action `index` in `blog_posts_controller`:
+
+{{ "app/controllers/blog_posts_controller.rb:index:../trailblazer-guides:operation-03" | tsnippet }} 
+
+Here the operation:
+
+{{ "app/concepts/blog_post/operation/index.rb:indexop:../trailblazer-guides:operation-03" | tsnippet }}
+
+Really simply we want to get all the `BlogPost` in the database and save it into the model so we can pass in the cell class (check the second argument of the controller `result["model"]`).
+Here it's possible to filter the data to show for example if the post has a status you may want to pass in the model only the `BlogPosts` that have been approved by the administrator, so our `model!` step would be:
+
+```
+def model!(options, *)
+  options["model"] = ::BlogPost.where("status like ?", "Approved").reverse_order
+end
+```
+
+Here the cell class:
+
+{{ "app/concepts/blog_post/cell/index.rb:index:../trailblazer-guides:operation-03 | tnippet"}}
+
+and the view:
+
+```
+h6 = total
+= cell("post/cell/item", collection: model)
+```
+
+The cell class is used just as a decoration, so in case there is no `BlogPost` the string `"No posts"` is shown.
+Much more insteresting is the view, we bascially call another cell class `Item` in order to show the actual a sort of summary of the `BlogPosts` and because we pass a `collection` as second argument, in case model has size more than 1, this will create the list of `BlogPosts` that we want.
+
+Here the `BlogPost::Cell::Item`:
+
+{{ "app/concepts/blog_post/cell/item.rb:item:../trailblazer-guides:operation-03 | tnippet"}}
+
+and the view:
+
+.post-preview
+  h2.post-title
+    = title
+  h3.post-subtitle
+    = subtitle
+  p.post-meta
+    = "Posted by #{author} on #{time.strftime("%d %B %Y")}"
+hr  
+
+In this way each element of the list will have the structure above and using either the `Title` or the `Subtitle` we access to the actual `BlogPost`.
+*In light of a really simple `Index` operation, we don't have any test for it.*
+
+The `show` action is a little bit more exciting, here the controller:
+
+{{ "app/controllers/blog_posts_controller.rb:show:../trailblazer-guides:operation-03" | tsnippet }} 
+
+Here the operation:
+
+{{ "app/concepts/blog_post/operation/show.rb:showop:../trailblazer-guides:operation-03" | tsnippet }}
+
+`BlogPost::Show` needs the `id` as argument and we use `find_by` because in case the `BlogPost` is not found which it returns a `nil` model and the flow is moved in the failure pipe. In this way we can use a trick to show a "fake" `BlogPost` with title `Post not found!` and not having a breaken application, here how:
+  
+{{ "app/concepts/blog_post/operation/lib/error.rb:error:../trailblazer-guides:operation-03" | tsnippet }}
+
+Let's have a loot to the test:
+
+{{ "app/test/concepts/operation/blog_post/operation_test.rb:not_found:../trailblazer-guides:operation-03" | tsnippet }}
+
+As shown here if you pass a not existing `id` the result of the `show` operation is still false but it shows a not found Post in order to correctly render the `Cell::Show` and to let the `User` undestands that something went wrong and keep using the web-application. 
+
+## Edit && Update
+
+Here we have the same concept in terms of presenting a form and actually validate and save the data.
+Therefore `BlogPost::Edit` will preset a form building a contract and `BlogPost::Update` will nest the edit operation, validate and save the data.
+
+The controller actions will be:
+
+{{ "app/controllers/blog_post_controller.rb:edit-update:../trailblazer-guides:operation-03" | tsnippet }}
+
+**We need to present and elaborate a form so we pass `result["contract.default"]` to the cell classes**
+
+Here the `BlogPost::Contract::Edit`:
+
+{{ "app/concepts/blog_post/contract/edit.rb:contract:../trailblazer-guides:operation-03" | tsnippet }}
+
+The only different with `Contract::Create` is the `user_id` property, just because we decide to not modify it.
+Using a different contract allows us to have different validations and also modify part of the model, for example in `User` you don't want to change the password everytime the User decides to change the address so you will have 2 different contracts in order to change the password and to change the user details.
+
+Here the operation:
+
+{{ "app/concepts/blog_post/operation/edit.rb:editop:../trailblazer-guides:operation-03" | tsnippet }}
+
+Same as for the `BlogPost::Show` we use the same trick in case `BlogPost` is not found and we introduce the new feature [fail_fast](http://trailblazer.to/gems/operation/2.0/api.html#flow-control-fail-fast-option). Basically if the `failure` step that has `true` as `fail_fast` it's executed, the operation will stop the execution on that step. We need this in our case otherwise all the failure steps after `failure BlogPost::Error, fail_fast: true` will be executed.
+
+After making sure that we have a real BlogPost we apply our `Policy`, so we check if first in first `current_user` is != nill and then we check if `current_user` is either the owner of the `BlogPost` or the admin. In case the `Policy` is not satisfied we raise a `NotAuthorizedError`, so we declare a class from `RunTimeError` and we rescue it when it is raised:
+
+{{ "app/controllers/application_controller.rb:notauthorized:../trailblazer-guides:operation-03" | tsnippet }}
+
+In the rescue we just show a Not Authorized flash message and redirect to the `rooth_path`.
+The `NotAuthorizedError` is raised in `failure BlogPost::ThrowException`:
+
+{{ "app/concepts/blog_post/lib/throw_exception.rb:exception:../trailblazer-guides:operation-03" | tsnippet }}
+
+If everything is ok we finally build the contract and preset a form, here the cell class:
+
+{{ "app/concepts/blog_post/cell/edit.rb:edit:../trailblazer-guides:operation-03" | tsnippet }}
+
+and the view:
+
+```
+.row
+  h1 Edit Post
+
+  = simple_form_for model do |f|
+    .row
+      .col-sm-12
+        = f.input :title, placeholder: "Title", label: false
+    .row
+      .col-sm-12
+        = f.input :subtitle, placeholder: "Subtitle", label: false
+    .row
+      .col-sm-12
+        = f.textarea :body, placeholder: "What do you wanna say?", label: false
+    .row
+      .col-sm-12
+        = "by " + user_name
+    .row
+      .col-sm-6  
+        = f.submit 'Save'
+      .col-sm-4
+        h6 = delete
+      .col-sm-2
+        h6 = back
+```
+
+The update operation below is basically the same of `BlogPost::Create`:
+
+{{ "app/concepts/blog_post/operation/update.rb:updateop:../trailblazer-guides:operation-03" | tsnippet }}
+
